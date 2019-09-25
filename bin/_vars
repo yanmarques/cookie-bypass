@@ -1,0 +1,15 @@
+#!/bin/sh
+
+LISTEN_PORT=${CB_LISTEN_PORT:-"443"}
+PROXY_PORT=${CB_PROXY_PORT:-"8000"}
+
+SERVER_CONF_DIR=${CB_SERVER_CONF_DIR:-"/etc/nginx/cookie-bypass.d"}
+SERVER_CONF_FILE="${SERVER_CONF_DIR%/}/${2}.conf"
+
+NGINX_CONF_DIR=${CB_NGINX_CONF_DIR:-"/etc/nginx/conf.d"}
+NGINX_CONF_DIR=${NGINX_CONF_DIR%/}/
+
+LOCAL_CERTIFICATES_DIR=${CB_LOCAL_CERT_DIR-"certificates"}
+
+DNSMASQ_CONF_DIR=${CB_DNS_CONF_DIR:-"/etc/NetworkManager/dnsmasq-shared.d"}
+DNSMASQ_CONF_FILE="${DNSMASQ_CONF_DIR%/}/cookie_bypass.conf"

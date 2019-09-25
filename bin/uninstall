@@ -1,0 +1,31 @@
+#!/bin/sh
+# get logging functions
+source ./logger
+
+should_be_root "That because it will
+    1 - remove all cookie-bypass virtual servers on nginx
+    2 - remove cookie-bypass dnsmasq configuration file
+    3 - restart nginx to stop listening to removed servers"
+
+# access some shared variables
+source ./_vars
+
+debug "Cleaning virtual servers..."
+if [ -d ${SERVER_CONF_DIR} ]; then  # check directory presence
+  # iterate through every server block and remove the link from active
+  # nginx configuration directory
+  for file in ${SERVER_CONF_DIR}/*; do
+    if [ -f ${file} ]; then
+      filename=$(basename ${file})
+      unlink ${NGINX_CONF_DIR}${filename}
+    fi
+  done
+
+  rm -r ${SERVER_CONF_DIR}
+fi
+
+debug "Restarting nginx..."
+systemctl restart nginx
+
+debug "Cleaning dnsmasq"
+rm ${DNSMASQ_CONF_FILE}

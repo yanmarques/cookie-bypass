@@ -1,0 +1,21 @@
+#!/bin/sh
+
+if [ -z ${1} -o -z ${2} ]; then
+  echo "Usage: destination prefix-name"
+  exit 128
+fi
+
+which openssl || (echo '[-] Openssl binary is missing.' && exit 1)
+
+DEST="${1%/}/${2}"
+
+KEY="${DEST}.key"
+CRT="${DEST}.crt"
+DHPARAM="${DEST}.pem"
+
+# create directory if needed
+[ -d "$1" ] || mkdir "$1"
+
+openssl req -x509 -newkey rsa:4096 -keyout "$KEY" -nodes -batch -out "$CRT" -days 180
+openssl dhparam -out "$DHPARAM" 2048
+echo "[*] Self-signed certificate generated!"

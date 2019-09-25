@@ -1,0 +1,20 @@
+#!/bin/sh
+info() {
+  echo "[+] ${1}"
+}
+
+debug() {
+  echo "[*] ${1}"
+}
+
+error() {
+  echo "[-] ${1}"
+}
+
+should_be_root() {
+  if [ $(id --user) != "0" ]; then
+    error "You should run this script as root!"
+    info "$1"
+    exit 1
+  fi
+}

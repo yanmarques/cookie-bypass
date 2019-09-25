@@ -1,0 +1,117 @@
+#!/bin/sh
+# get logging functions
+source ./logger
+
+if [ -z "$1" -o -z "$2" ]; then
+  echo "Usage: host-addr url"
+  exit 128
+fi
+
+# be the boss...
+should_be_root "That's because it will:
+    1 - create a virtual server on nginx
+    2 - restart nginx service
+    3 - create an A record on dnsmasq pointing to earlier created server"
+
+# get shared variables
+source ./_vars
+
+CERT_PREFIX="generic"
+
+is_https() {
+  [ ${LISTEN_PORT} == "443" ]
+}
+
+create_virtual_server() {
+  local TEMPLATE_FILE=""
+
+  if [ ! -d ${SERVER_CONF_DIR} ]; then
+    mkdir ${SERVER_CONF_DIR}
+  fi
+
+  # choose the template to use based on listening port
+  if is_https; then
+    TEMPLATE_FILE="./tpl.d/https.tpl.conf"
+  else
+    TEMPLATE_FILE="./tpl.d/http.tpl.conf"
+  fi
+
+  # copy template to destination file and create a symbolic link on active
+  # nginx server configuration directory
+  cp ${TEMPLATE_FILE} ${SERVER_CONF_FILE}
+  ln -s ${SERVER_CONF_FILE} ${NGINX_CONF_DIR}
+
+  # configure basic stuff such as the port to listen, url and the port where
+  # the proxy server will be listening
+  sed -i -e "s/LISTEN_PORT/${LISTEN_PORT}/" \
+    -e "s/SERVER_NAME/${1}/" \
+    -e "s/PROXY_PORT/${PROXY_PORT}/" \
+    ${SERVER_CONF_FILE}
+}
+
+ensure_certificates_presence() {
+  # First check wheter the certificate directory is present,
+  # then make a horrible check on how many files the directory has
+  if [ -d ${LOCAL_CERTIFICATES_DIR} ] && \
+     [ $(ls ${LOCAL_CERTIFICATES_DIR} | wc -l) == "3" ]; then
+    info "A certificate directory was found. Reusing old certificates..."
+  else
+    info "A process to generate new certificates will be started."
+    ./cert-self-gen ${LOCAL_CERTIFICATES_DIR} ${CERT_PREFIX}
+  fi
+}
+
+setup_cert_files() {
+  local SSL_CERTIFICATES="${SERVER_CONF_DIR%/}/${LOCAL_CERTIFICATES_DIR%/}/"
+  local PREFIXED_CERT_PATH=${SSL_CERTIFICATES}${CERT_PREFIX}
+
+  # copy the whole certificate directory to our own configuration directory
+  cp -R ${LOCAL_CERTIFICATES_DIR} ${SERVER_CONF_DIR}
+
+  # owner = root and group = nginx (the group of running nginx instance group)
+  # nginx is the default group for running instances, although this is not a
+  # rule so maybe this could became configurable!?
+  chown -R root:nginx ${SSL_CERTIFICATES}
+
+  # generate each certificate name
+  CERT="${PREFIXED_CERT_PATH}.crt"
+  KEY="${PREFIXED_CERT_PATH}.key"
+  DHPARAM="${PREFIXED_CERT_PATH}.pem"
+
+  # read-only for owner and group
+  chmod 440 ${KEY} ${DHPARAM}
+
+  # read-only for everybody
+  chmod 444 ${CERT}
+}
+
+configure_server_ssl() {
+  # turn ssl on and apply the generated certificates
+  sed -i -e "s/ssl off/ssl on/" \
+    -e "s|#ssl_certificate$|ssl_certificate ${CERT};|" \
+    -e "s|#ssl_certificate_key$|ssl_certificate_key ${KEY};|" \
+    -e "s|#ssl_dhparam|ssl_dhparam ${DHPARAM};|" \
+    ${SERVER_CONF_FILE}
+}
+
+debug "Configuring virtual server..."
+create_virtual_server ${2}
+
+if is_https; then  # HTTPS will be used
+  info "Server port is 443, starting ssl configuration..."
+  ensure_certificates_presence
+
+  debug "Configuring certificates on virtual server..."
+  setup_cert_files
+  configure_server_ssl
+fi
+
+debug "Restarting nginx..."
+systemctl restart nginx
+
+debug "Configuring DNS bypass..."
+echo address=/${2}/${1} > ${DNSMASQ_CONF_FILE}
+
+info "Now you should start the hotspot, connect to it and open."
+info "In case you are getting refused to connect, check your firewall configuration."
+info "Now start the proxy server. Run: ./start_proxy"
