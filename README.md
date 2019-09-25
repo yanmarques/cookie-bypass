@@ -66,4 +66,6 @@ Now our gateway is up and running, we have to connect the client to our LAN thro
 the access point, and access that target site in the browser! When you do that
 you will see a blank page on the client browser, but on the gateway, a firefox
 window will be loaded with the target site and after a few seconds with everything
-previously on the client side.  
+previously on the client side.
+
+More docs comming soon...  
